@@ -47,7 +47,7 @@ public class ChessAI {
     Collections.shuffle(legal, random);
 
     double bestScore = Double.NEGATIVE_INFINITY;
-    Main.Move bestMove = legal.get(0);
+    Main.Move bestMove = legal.getFirst();
     int depth = difficulty.searchDepth();
 
     for (Main.Move move : legal) {
