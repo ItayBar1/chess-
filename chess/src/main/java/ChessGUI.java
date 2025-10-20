@@ -21,11 +21,12 @@ public class ChessGUI {
   private final EnumMap<Main.Color, EnumMap<Main.PieceType, Icon>> pieceIcons =
       new EnumMap<>(Main.Color.class);
 
-  private static final Color LIGHT_SQUARE = new Color(237, 229, 211);
+  private static final Color LIGHT_SQUARE = new Color(218, 232, 255);
   private static final Color DARK_SQUARE = new Color(90, 108, 126);
   private static final Color SELECT_COLOR = new Color(255, 196, 61);
   private static final Color TARGET_COLOR = new Color(124, 187, 143);
   private static final int ICON_BOUND = 64;
+  private static final Color COORDINATE_COLOR = new Color(62, 74, 96);
 
   public ChessGUI() {
     board = new Main.Board();
@@ -103,7 +104,28 @@ public class ChessGUI {
     JPanel boardPanel = new JPanel(new GridLayout(8, 8));
     boardPanel.setOpaque(false);
     boardPanel.setPreferredSize(new Dimension(520, 520));
-    boardContainer.add(boardPanel);
+
+    JPanel boardWithLabels = new JPanel(new BorderLayout());
+    boardWithLabels.setOpaque(false);
+    boardWithLabels.add(boardPanel, BorderLayout.CENTER);
+
+    JPanel filesTop = new JPanel(new GridLayout(1, 8));
+    filesTop.setOpaque(false);
+    filesTop.setBorder(new EmptyBorder(0, 8, 8, 8));
+    for (int c = 0; c < 8; c++) {
+      filesTop.add(createCoordinateLabel(String.valueOf((char) ('a' + c))));
+    }
+    boardWithLabels.add(filesTop, BorderLayout.NORTH);
+
+    JPanel ranksLeft = new JPanel(new GridLayout(8, 1));
+    ranksLeft.setOpaque(false);
+    ranksLeft.setBorder(new EmptyBorder(8, 0, 8, 8));
+    for (int r = 0; r < 8; r++) {
+      ranksLeft.add(createCoordinateLabel(String.valueOf(8 - r)));
+    }
+    boardWithLabels.add(ranksLeft, BorderLayout.WEST);
+
+    boardContainer.add(boardWithLabels);
 
     RoundedPanel sidePanel = new RoundedPanel(20, new Color(35, 43, 63, 230));
     sidePanel.setLayout(new BoxLayout(sidePanel, BoxLayout.Y_AXIS));
@@ -327,6 +349,14 @@ public class ChessGUI {
     Map<Main.PieceType, Icon> byType = pieceIcons.get(piece.color);
     if (byType == null) return null;
     return byType.get(piece.type);
+  }
+
+  private JLabel createCoordinateLabel(String text) {
+    JLabel label = new JLabel(text.toUpperCase(), SwingConstants.CENTER);
+    label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+    label.setForeground(COORDINATE_COLOR);
+    label.setOpaque(false);
+    return label;
   }
 
   private void updateStatus(Main.Move lastMove) {
