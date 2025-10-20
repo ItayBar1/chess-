@@ -39,7 +39,7 @@ public class ChessGUI {
         root.setBorder(new EmptyBorder(30, 35, 30, 35));
         frame.setContentPane(root);
 
-        JLabel title = new JLabel("Aurora Chess", SwingConstants.CENTER);
+        JLabel title = new JLabel("Chess", SwingConstants.CENTER);
         title.setFont(new Font("Serif", Font.BOLD, 36));
         title.setForeground(new Color(238, 242, 255));
         title.setBorder(new EmptyBorder(10, 10, 10, 10));
@@ -70,7 +70,7 @@ public class ChessGUI {
         status.setForeground(new Color(235, 240, 255));
         status.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
         status.setBorder(new EmptyBorder(18, 12, 18, 12));
-        setStatusMessage("Welcome to Aurora Chess<br/>White to move");
+        setStatusMessage("Welcome to Chess<br/>White to move");
 
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
