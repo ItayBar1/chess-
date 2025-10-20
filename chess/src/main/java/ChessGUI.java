@@ -20,6 +20,12 @@ public class ChessGUI {
   private final Set<Integer> legalTargets = new HashSet<>(); // encode as r*8+c
   private final EnumMap<Main.Color, EnumMap<Main.PieceType, Icon>> pieceIcons =
       new EnumMap<>(Main.Color.class);
+  private final ChessAI ai = new ChessAI();
+  private ChessAI.Difficulty selectedDifficulty = ChessAI.Difficulty.MEDIUM;
+  private JComboBox<ChessAI.Difficulty> difficultySelector;
+  private boolean aiThinking;
+  private boolean gameOver;
+  private long gameId;
 
   private static final Color LIGHT_SQUARE = new Color(218, 232, 255);
   private static final Color DARK_SQUARE = new Color(90, 108, 126);
@@ -31,9 +37,13 @@ public class ChessGUI {
   public ChessGUI() {
     board = new Main.Board();
     turn = Main.Color.WHITE;
+    gameOver = false;
+    aiThinking = false;
+    gameId = 0L;
     loadPieceIcons();
     initUI();
     updateBoardUI();
+    updateStatus(null);
   }
 
   private void loadPieceIcons() {
@@ -142,7 +152,7 @@ public class ChessGUI {
     status.setForeground(new Color(235, 240, 255));
     status.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
     status.setBorder(new EmptyBorder(18, 12, 18, 12));
-    setStatusMessage("Welcome to Chess<br/>White to move");
+    setStatusMessage("Welcome to Chess — prepare to play as White!");
 
     for (int r = 0; r < 8; r++) {
       for (int c = 0; c < 8; c++) {
@@ -163,24 +173,49 @@ public class ChessGUI {
       }
     }
 
+    JLabel difficultyLabel = new JLabel("Difficulty");
+    difficultyLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+    difficultyLabel.setForeground(new Color(205, 214, 255));
+    difficultyLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+
+    difficultySelector = new JComboBox<>(ChessAI.Difficulty.values());
+    difficultySelector.setAlignmentX(Component.CENTER_ALIGNMENT);
+    difficultySelector.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+    difficultySelector.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+    difficultySelector.setForeground(new Color(32, 37, 54));
+    difficultySelector.setBackground(new Color(210, 220, 255));
+    difficultySelector.setSelectedItem(selectedDifficulty);
+    difficultySelector.addActionListener(
+        e -> {
+          ChessAI.Difficulty choice =
+              (ChessAI.Difficulty) difficultySelector.getSelectedItem();
+          if (choice != null) {
+            selectedDifficulty = choice;
+            if (!gameOver) {
+              updateStatus(null);
+            }
+          }
+        });
+
     JButton newGame =
         createControlButton(
             "New Match",
             () -> {
               resetBoardState();
-              setStatusMessage("New match — White to move");
             });
 
     JButton resign =
         createControlButton(
             "Resign",
             () -> {
-              String resigning = (turn == Main.Color.WHITE) ? "White" : "Black";
-              String winner = (turn == Main.Color.WHITE) ? "Black" : "White";
+              if (gameOver) {
+                return;
+              }
+              aiThinking = false;
+              gameOver = true;
               JOptionPane.showMessageDialog(
-                  frame, resigning + " resigns. " + winner + " claims victory.");
+                  frame, "You resign. The computer claims victory.");
               resetBoardState();
-              setStatusMessage("Fresh board — White to move");
             });
 
     JSeparator separator = new JSeparator();
@@ -201,7 +236,11 @@ public class ChessGUI {
     sidePanel.add(subtitle);
     sidePanel.add(Box.createVerticalStrut(15));
     sidePanel.add(status);
-    sidePanel.add(Box.createVerticalStrut(15));
+    sidePanel.add(Box.createVerticalStrut(18));
+    sidePanel.add(difficultyLabel);
+    sidePanel.add(Box.createVerticalStrut(8));
+    sidePanel.add(difficultySelector);
+    sidePanel.add(Box.createVerticalStrut(18));
     sidePanel.add(newGame);
     sidePanel.add(Box.createVerticalStrut(10));
     sidePanel.add(resign);
@@ -265,7 +304,11 @@ public class ChessGUI {
     turn = Main.Color.WHITE;
     selR = selC = -1;
     legalTargets.clear();
+    aiThinking = false;
+    gameOver = false;
+    gameId++;
     updateBoardUI();
+    updateStatus(null);
   }
 
   private void setStatusMessage(String messageBody) {
@@ -273,12 +316,16 @@ public class ChessGUI {
   }
 
   private void onSquareClicked(int r, int c) {
+    if (gameOver || aiThinking || turn != Main.Color.WHITE) {
+      return;
+    }
+
     // If nothing selected: try to select a piece of current color
     Main.Piece p = board.at(r, c);
     if (selR == -1) {
       if (p == null) return;
       if (p.color != turn) {
-        JOptionPane.showMessageDialog(frame, "That piece isn't yours.");
+        Toolkit.getDefaultToolkit().beep();
         return;
       }
       selectSquare(r, c);
@@ -303,6 +350,9 @@ public class ChessGUI {
       legalTargets.clear();
       updateBoardUI();
       updateStatus(m);
+      if (!gameOver && turn == Main.Color.BLACK) {
+        performAIMove();
+      }
     } else {
       // if clicked on another of your pieces, change selection
       if (p != null && p.color == turn) {
@@ -372,35 +422,53 @@ public class ChessGUI {
           .append("</span><br/>");
     }
     if (legal.isEmpty()) {
+      gameOver = true;
+      aiThinking = false;
       if (inCheck) {
-        String loser = (turn == Main.Color.WHITE ? "White" : "Black");
-        String winner = (turn == Main.Color.WHITE ? "Black" : "White");
-        dialogMessage = loser + " is checkmated. " + winner + " wins.";
+        boolean playerToMove = (turn == Main.Color.WHITE);
+        String loser = playerToMove ? "You" : "Computer";
+        String winner = playerToMove ? "Computer" : "You";
+        String loserVerb = playerToMove ? "are" : "is";
+        String winnerVerb = winner.equals("You") ? "win" : "wins";
+        dialogMessage = loser + " " + loserVerb + " checkmated. " + winner + " " + winnerVerb + ".";
         message
             .append("<span style='font-size:15px;font-weight:bold;color:#ff7b7b;'>")
             .append(loser)
-            .append(" is checkmated.</span><br/>")
+            .append(" ")
+            .append(loserVerb)
+            .append(" checkmated.</span><br/>")
             .append("<span style='color:#9fffd7;'>")
             .append(winner)
-            .append(" triumphs!</span>");
+            .append(winner.equals("You") ? " claim victory!" : " celebrates victory!")
+            .append("</span>");
       } else {
-        dialogMessage = "Stalemate! It's a draw.";
+        dialogMessage = "Stalemate! The duel ends in a draw.";
         message
             .append(
                 "<span style='font-size:15px;font-weight:bold;color:#ffd369;'>Stalemate.</span><br/>")
-            .append("<span style='color:#d6e0ff;'>It's a draw.</span>");
+            .append("<span style='color:#d6e0ff;'>The battle ends peacefully.</span>");
       }
     } else {
-      message
-          .append("<span style='font-size:18px;font-weight:bold;'>")
-          .append(turn == Main.Color.WHITE ? "White" : "Black")
-          .append(" to move</span>");
-      if (inCheck) {
-        message.append("<br/><span style='color:#ff9f7b;'>King in check!</span>");
+      if (turn == Main.Color.WHITE) {
+        message
+            .append("<span style='font-size:18px;font-weight:bold;'>Your move</span>")
+            .append("<br/><span style='color:#bcd0ff;'>Plan your attack against the computer.</span>");
       } else {
-        message.append(
-            "<br/><span style='color:#bcd0ff;'>Stay sharp and craft your strategy.</span>");
+        message
+            .append("<span style='font-size:18px;font-weight:bold;'>Computer thinking…</span>")
+            .append("<br/><span style='color:#bcd0ff;'>Analyzing the best reply.</span>");
       }
+      if (inCheck) {
+        String warning =
+            (turn == Main.Color.WHITE)
+                ? "Your king is in check!"
+                : "Computer king is in check!";
+        message.append("<br/><span style='color:#ff9f7b;'>").append(warning).append("</span>");
+      }
+      message
+          .append("<br/><span style='color:#a9b8e8;'>Difficulty: ")
+          .append(selectedDifficulty.displayName())
+          .append("</span>");
     }
     setStatusMessage(message.toString());
     if (dialogMessage != null) {
@@ -425,6 +493,48 @@ public class ChessGUI {
     String from = toSquareName(move.fr, move.fc);
     String to = toSquareName(move.tr, move.tc);
     return (pieceName.isEmpty() ? "" : pieceName + " ") + from + " → " + to;
+  }
+
+  private void performAIMove() {
+    if (aiThinking || gameOver || turn != Main.Color.BLACK) {
+      return;
+    }
+    aiThinking = true;
+    final long currentGameId = gameId;
+    final Main.Board snapshot = board.copy();
+
+    SwingWorker<Main.Move, Void> worker =
+        new SwingWorker<>() {
+          @Override
+          protected Main.Move doInBackground() {
+            return ai.chooseMove(snapshot, Main.Color.BLACK, selectedDifficulty);
+          }
+
+          @Override
+          protected void done() {
+            aiThinking = false;
+            if (currentGameId != gameId || gameOver || turn != Main.Color.BLACK) {
+              return;
+            }
+            try {
+              Main.Move aiMove = get();
+              if (aiMove == null) {
+                updateStatus(null);
+                return;
+              }
+              board.applyMove(aiMove);
+              turn = Main.Color.WHITE;
+              selR = selC = -1;
+              legalTargets.clear();
+              updateBoardUI();
+              updateStatus(aiMove);
+            } catch (Exception ex) {
+              JOptionPane.showMessageDialog(
+                  frame, "Computer move failed: " + ex.getMessage());
+            }
+          }
+        };
+    worker.execute();
   }
 
   private String toSquareName(int r, int c) {
