@@ -24,6 +24,7 @@ public class Main {
         public String toString() { return String.valueOf(symbol()); }
     }
 
+    // Simple container that stores zero-based from/to coordinates for a move.
     static class Move { int fr, fc, tr, tc; Move(int fr,int fc,int tr,int tc){this.fr=fr;this.fc=fc;this.tr=tr;this.tc=tc;} }
 
     static class Board {
@@ -32,7 +33,7 @@ public class Main {
         Board() { init(); }
 
         void init() {
-            // empty
+            // Start by clearing the board before placing the initial setup.
             for (int r=0;r<8;r++) for (int c=0;c<8;c++) grid[r][c]=null;
             // pawns
             for (int c=0;c<8;c++) grid[6][c] = new Piece(PieceType.PAWN, Color.WHITE);
@@ -61,6 +62,7 @@ public class Main {
         }
 
         Board copy() {
+            // Create a deep copy so simulations do not mutate the live position.
             Board b = new Board();
             b.grid = new Piece[8][8];
             for (int r=0;r<8;r++) for (int c=0;c<8;c++) {
@@ -74,6 +76,7 @@ public class Main {
         Piece at(int r,int c){ if(!inBounds(r,c)) return null; return grid[r][c]; }
 
         void applyMove(Move m) {
+            // Move the piece and handle the single special rule we support (promotion).
             Piece p = grid[m.fr][m.fc];
             grid[m.tr][m.tc] = p;
             grid[m.fr][m.fc] = null;
@@ -125,6 +128,7 @@ public class Main {
         }
 
         boolean isClearPath(int sr,int sc,int tr,int tc) {
+            // Step through every square between source and target and ensure nothing blocks the way.
             int dr = Integer.compare(tr, sr);
             int dc = Integer.compare(tc, sc);
             int r = sr+dr, c = sc+dc;
@@ -203,6 +207,7 @@ public class Main {
 
         // Generate legal moves for color (checks king safety)
         List<Move> generateLegalMoves(Color color) {
+            // Try every pseudo-legal move and only keep the ones that leave the king safe.
             List<Move> legal = new ArrayList<>();
             for (int r=0;r<8;r++) for (int c=0;c<8;c++) {
                 Piece p = at(r,c);
@@ -257,6 +262,7 @@ public class Main {
     }
 
     static Move parseMove(String input) {
+        // Normalize the user input (e.g. "e2 e4") into coordinate indices.
         input = input.trim();
         input = input.replaceAll("\\s+", "");
         if (input.length()!=4) return null;
@@ -280,6 +286,7 @@ public class Main {
 
             List<Move> legal = board.generateLegalMoves(turn);
             if (legal.isEmpty()) {
+                // When no legal moves exist, the game is over (either checkmate or stalemate).
                 if (board.isKingInCheck(turn)) {
                     System.out.println("Checkmate! " + (turn==Color.WHITE?"Black":"White") + " wins.");
                 } else {
