@@ -47,6 +47,7 @@ public class ChessGUI {
   }
 
   private void loadPieceIcons() {
+    // Preload all icons to avoid repeated disk access during rendering.
     for (Main.Color color : Main.Color.values()) {
       EnumMap<Main.PieceType, Icon> byType = new EnumMap<>(Main.PieceType.class);
       for (Main.PieceType type : Main.PieceType.values()) {
@@ -68,6 +69,7 @@ public class ChessGUI {
       throw new IllegalStateException("Missing resource: " + resourcePath);
     }
     ImageIcon original = new ImageIcon(resource);
+    // Ensure every icon fits the same square by drawing it on a scaled canvas.
     int width = original.getIconWidth();
     int height = original.getIconHeight();
     if (width <= 0 || height <= 0) {
@@ -90,6 +92,7 @@ public class ChessGUI {
   }
 
   private void initUI() {
+    // Construct the application window and all interactive controls.
     installLookAndFeel();
 
     frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -260,6 +263,7 @@ public class ChessGUI {
   }
 
   private void installLookAndFeel() {
+    // Prefer Nimbus for a modern appearance while gracefully falling back to defaults.
     try {
       for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
         if ("Nimbus".equals(info.getName())) {
@@ -273,6 +277,7 @@ public class ChessGUI {
   }
 
   private JButton createControlButton(String text, Runnable action) {
+    // Helper to build a styled button with hover/press feedback and an attached action.
     JButton button = new JButton(text);
     button.setAlignmentX(Component.CENTER_ALIGNMENT);
     button.setFocusPainted(false);
@@ -300,6 +305,7 @@ public class ChessGUI {
   }
 
   private void resetBoardState() {
+    // Start a fresh game and clear any UI highlights.
     board = new Main.Board();
     turn = Main.Color.WHITE;
     selR = selC = -1;
@@ -316,6 +322,7 @@ public class ChessGUI {
   }
 
   private void onSquareClicked(int r, int c) {
+    // Human interaction entry point — only allow White to play and ignore clicks during AI turns.
     if (gameOver || aiThinking || turn != Main.Color.WHITE) {
       return;
     }
@@ -364,6 +371,7 @@ public class ChessGUI {
   }
 
   private void selectSquare(int r, int c) {
+    // Remember which square is active and cache the legal destinations for highlighting.
     selR = r;
     selC = c;
     legalTargets.clear();
@@ -375,6 +383,7 @@ public class ChessGUI {
   }
 
   private void updateBoardUI() {
+    // Redraw pieces and highlight currently selected squares/targets.
     for (int r = 0; r < 8; r++) {
       for (int c = 0; c < 8; c++) {
         Main.Piece p = board.at(r, c);
@@ -410,6 +419,7 @@ public class ChessGUI {
   }
 
   private void updateStatus(Main.Move lastMove) {
+    // Compose a rich-text status panel reflecting the latest move and current situation.
     // Determine legal moves for current player
     List<Main.Move> legal = board.generateLegalMoves(turn);
     boolean inCheck = board.isKingInCheck(turn);
@@ -496,6 +506,7 @@ public class ChessGUI {
   }
 
   private void performAIMove() {
+    // Run the AI move selection asynchronously so the UI stays responsive.
     if (aiThinking || gameOver || turn != Main.Color.BLACK) {
       return;
     }

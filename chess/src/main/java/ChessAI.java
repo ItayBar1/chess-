@@ -40,6 +40,7 @@ public class ChessAI {
   private final Random random = new Random();
 
   public Main.Move chooseMove(Main.Board board, Main.Color aiColor, Difficulty difficulty) {
+    // Evaluate every legal move from the root position using alpha-beta pruning.
     List<Main.Move> legal = board.generateLegalMoves(aiColor);
     if (legal.isEmpty()) {
       return null;
@@ -51,6 +52,7 @@ public class ChessAI {
     int depth = difficulty.searchDepth();
 
     for (Main.Move move : legal) {
+      // Apply the candidate move on a clone so we do not mutate the original board.
       Main.Board copy = board.copy();
       copy.applyMove(move);
       double score =
@@ -78,12 +80,14 @@ public class ChessAI {
       double beta,
       Main.Color turn,
       Main.Color perspective) {
+    // Stop the search when the configured depth is reached and evaluate the static position.
     if (depth < 0) {
       return evaluateBoard(board, perspective);
     }
 
     List<Main.Move> legal = board.generateLegalMoves(turn);
     if (legal.isEmpty()) {
+      // Checkmate is infinitely good/bad, stalemate is neutral.
       if (board.isKingInCheck(turn)) {
         return turn == perspective ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
       }
@@ -102,6 +106,7 @@ public class ChessAI {
                 alphaBeta(copy, depth - 1, alpha, beta, opposite(turn), perspective));
         alpha = Math.max(alpha, value);
         if (alpha >= beta) {
+          // Alpha cutoff: opponent already has a better option elsewhere.
           break;
         }
       }
@@ -117,6 +122,7 @@ public class ChessAI {
                 alphaBeta(copy, depth - 1, alpha, beta, opposite(turn), perspective));
         beta = Math.min(beta, value);
         if (beta <= alpha) {
+          // Beta cutoff: our side has a better guarantee already.
           break;
         }
       }
@@ -125,6 +131,7 @@ public class ChessAI {
   }
 
   private double evaluateBoard(Main.Board board, Main.Color perspective) {
+    // Start with a basic material count from the perspective of the AI.
     double score = 0.0;
     for (int r = 0; r < 8; r++) {
       for (int c = 0; c < 8; c++) {
@@ -142,10 +149,12 @@ public class ChessAI {
       }
     }
 
+    // Reward mobility so the AI prefers positions with more available choices.
     int mobility = board.generateLegalMoves(perspective).size();
     int oppMobility = board.generateLegalMoves(opposite(perspective)).size();
     score += 0.05 * (mobility - oppMobility);
 
+    // Small nudges when either king is currently in check.
     if (board.isKingInCheck(perspective)) {
       score -= 0.5;
     }
