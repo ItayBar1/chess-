@@ -27,8 +27,8 @@ public class ChessGUI {
   private boolean gameOver;
   private long gameId;
 
-  private static final Color LIGHT_SQUARE = new Color(218, 232, 255);
-  private static final Color DARK_SQUARE = new Color(90, 108, 126);
+  private static final Color LIGHT_SQUARE = new Color(196, 210, 244);
+  private static final Color DARK_SQUARE = new Color(68, 86, 122);
   private static final Color SELECT_COLOR = new Color(255, 196, 61);
   private static final Color TARGET_COLOR = new Color(124, 187, 143);
   private static final int ICON_BOUND = 64;

@@ -29,6 +29,12 @@ public class Main {
 
     static class Board {
         Piece[][] grid = new Piece[8][8];
+        boolean whiteKingMoved;
+        boolean blackKingMoved;
+        boolean whiteKingsideRookMoved;
+        boolean whiteQueensideRookMoved;
+        boolean blackKingsideRookMoved;
+        boolean blackQueensideRookMoved;
 
         Board() { init(); }
 
@@ -59,6 +65,12 @@ public class Main {
             // kings
             grid[7][4] = new Piece(PieceType.KING, Color.WHITE);
             grid[0][4] = new Piece(PieceType.KING, Color.BLACK);
+            whiteKingMoved = false;
+            blackKingMoved = false;
+            whiteKingsideRookMoved = false;
+            whiteQueensideRookMoved = false;
+            blackKingsideRookMoved = false;
+            blackQueensideRookMoved = false;
         }
 
         Board copy() {
@@ -69,6 +81,12 @@ public class Main {
                 Piece p = this.grid[r][c];
                 if (p!=null) b.grid[r][c] = new Piece(p.type, p.color);
             }
+            b.whiteKingMoved = this.whiteKingMoved;
+            b.blackKingMoved = this.blackKingMoved;
+            b.whiteKingsideRookMoved = this.whiteKingsideRookMoved;
+            b.whiteQueensideRookMoved = this.whiteQueensideRookMoved;
+            b.blackKingsideRookMoved = this.blackKingsideRookMoved;
+            b.blackQueensideRookMoved = this.blackQueensideRookMoved;
             return b;
         }
 
@@ -78,12 +96,50 @@ public class Main {
         void applyMove(Move m) {
             // Move the piece and handle the single special rule we support (promotion).
             Piece p = grid[m.fr][m.fc];
-            grid[m.tr][m.tc] = p;
+            Piece captured = grid[m.tr][m.tc];
+            if (captured != null && captured.type == PieceType.ROOK) {
+                markRookMovedOrGone(captured.color, m.tr, m.tc);
+            }
             grid[m.fr][m.fc] = null;
+            if (p != null) {
+                if (p.type == PieceType.KING) {
+                    if (p.color == Color.WHITE) whiteKingMoved = true;
+                    else blackKingMoved = true;
+                    if (Math.abs(m.tc - m.fc) == 2) {
+                        int row = m.tr;
+                        if (m.tc > m.fc) {
+                            // Kingside castling
+                            Piece rook = grid[row][7];
+                            grid[row][7] = null;
+                            grid[row][5] = rook;
+                            markRookMovedOrGone(p.color, row, 7);
+                        } else {
+                            // Queenside castling
+                            Piece rook = grid[row][0];
+                            grid[row][0] = null;
+                            grid[row][3] = rook;
+                            markRookMovedOrGone(p.color, row, 0);
+                        }
+                    }
+                } else if (p.type == PieceType.ROOK) {
+                    markRookMovedOrGone(p.color, m.fr, m.fc);
+                }
+            }
+            grid[m.tr][m.tc] = p;
             // promotion: pawn reaches last rank
             if (p != null && p.type == PieceType.PAWN) {
                 if (p.color == Color.WHITE && m.tr == 0) grid[m.tr][m.tc] = new Piece(PieceType.QUEEN, Color.WHITE);
                 if (p.color == Color.BLACK && m.tr == 7) grid[m.tr][m.tc] = new Piece(PieceType.QUEEN, Color.BLACK);
+            }
+        }
+
+        private void markRookMovedOrGone(Color color, int row, int col) {
+            if (color == Color.WHITE && row == 7) {
+                if (col == 0) whiteQueensideRookMoved = true;
+                if (col == 7) whiteKingsideRookMoved = true;
+            } else if (color == Color.BLACK && row == 0) {
+                if (col == 0) blackQueensideRookMoved = true;
+                if (col == 7) blackKingsideRookMoved = true;
             }
         }
 
@@ -219,7 +275,57 @@ public class Main {
                     if (!copy.isKingInCheck(color)) legal.add(m);
                 }
             }
+            addCastlingMoves(color, legal);
             return legal;
+        }
+
+        private void addCastlingMoves(Color color, List<Move> legal) {
+            int row = (color == Color.WHITE) ? 7 : 0;
+            int kingCol = 4;
+            Piece king = at(row, kingCol);
+            if (king == null || king.type != PieceType.KING || king.color != color) return;
+            if (isKingInCheck(color)) return;
+
+            Color opponent = (color == Color.WHITE) ? Color.BLACK : Color.WHITE;
+
+            if (!hasKingMoved(color)) {
+                if (canCastleKingside(color, row, opponent)) {
+                    legal.add(new Move(row, kingCol, row, kingCol + 2));
+                }
+                if (canCastleQueenside(color, row, opponent)) {
+                    legal.add(new Move(row, kingCol, row, kingCol - 2));
+                }
+            }
+        }
+
+        private boolean hasKingMoved(Color color) {
+            return color == Color.WHITE ? whiteKingMoved : blackKingMoved;
+        }
+
+        private boolean canCastleKingside(Color color, int row, Color opponent) {
+            if (color == Color.WHITE) {
+                if (whiteKingsideRookMoved) return false;
+            } else {
+                if (blackKingsideRookMoved) return false;
+            }
+            Piece rook = at(row, 7);
+            if (rook == null || rook.type != PieceType.ROOK || rook.color != color) return false;
+            if (at(row, 5) != null || at(row, 6) != null) return false;
+            if (isAttacked(row, 5, opponent) || isAttacked(row, 6, opponent)) return false;
+            return true;
+        }
+
+        private boolean canCastleQueenside(Color color, int row, Color opponent) {
+            if (color == Color.WHITE) {
+                if (whiteQueensideRookMoved) return false;
+            } else {
+                if (blackQueensideRookMoved) return false;
+            }
+            Piece rook = at(row, 0);
+            if (rook == null || rook.type != PieceType.ROOK || rook.color != color) return false;
+            if (at(row, 1) != null || at(row, 2) != null || at(row, 3) != null) return false;
+            if (isAttacked(row, 3, opponent) || isAttacked(row, 2, opponent)) return false;
+            return true;
         }
 
         boolean isKingInCheck(Color color) {
@@ -278,7 +384,7 @@ public class Main {
         Board board = new Board();
         Scanner sc = new Scanner(System.in);
         Color turn = Color.WHITE;
-        System.out.println("Simple Console Chess (no castling, no en-passant). Moves like: e2e4 or e2 e4. Type 'resign' to resign.");
+        System.out.println("Simple Console Chess (no en-passant). Moves like: e2e4 or e2 e4. Castle by moving the king two squares. Type 'resign' to resign.");
 
         while (true) {
             board.print();
@@ -305,7 +411,7 @@ public class Main {
             }
             if (line.equalsIgnoreCase("quit") || line.equalsIgnoreCase("exit")) { System.out.println("Bye"); break; }
             if (line.equalsIgnoreCase("help")) {
-                System.out.println("Enter moves like 'e2e4' or 'e2 e4'. No castling/en-passant. Pawn auto-promotes to queen.");
+                System.out.println("Enter moves like 'e2e4' or 'e2 e4'. No en-passant. Castle by moving the king two squares. Pawn auto-promotes to queen.");
                 continue;
             }
 
