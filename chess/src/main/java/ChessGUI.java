@@ -1,7 +1,20 @@
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Image;
+import java.awt.Insets;
+import java.awt.RenderingHints;
+import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.net.URL;
 import java.util.EnumMap;
@@ -11,15 +24,15 @@ import java.util.Map;
 import java.util.Set;
 
 public class ChessGUI {
-  private Main.Board board;
-  private Main.Color turn;
+  private Board board;
+  private PlayerColor turn;
   private final JButton[][] squares = new JButton[8][8];
   private final JFrame frame = new JFrame("Chess");
   private final JLabel status = new JLabel();
   private int selR = -1, selC = -1;
-  private final Set<Integer> legalTargets = new HashSet<>(); // encode as r*8+c
-  private final EnumMap<Main.Color, EnumMap<Main.PieceType, Icon>> pieceIcons =
-      new EnumMap<>(Main.Color.class);
+  private final Set<Integer> legalTargets = new HashSet<>();
+  private final EnumMap<PlayerColor, EnumMap<PieceType, Icon>> pieceIcons =
+      new EnumMap<>(PlayerColor.class);
   private final ChessAI ai = new ChessAI();
   private ChessAI.Difficulty selectedDifficulty = ChessAI.Difficulty.MEDIUM;
   private JComboBox<ChessAI.Difficulty> difficultySelector;
@@ -27,16 +40,16 @@ public class ChessGUI {
   private boolean gameOver;
   private long gameId;
 
-  private static final Color LIGHT_SQUARE = new Color(196, 210, 244);
-  private static final Color DARK_SQUARE = new Color(68, 86, 122);
-  private static final Color SELECT_COLOR = new Color(255, 196, 61);
-  private static final Color TARGET_COLOR = new Color(124, 187, 143);
+  private static final java.awt.Color LIGHT_SQUARE = new java.awt.Color(196, 210, 244);
+  private static final java.awt.Color DARK_SQUARE = new java.awt.Color(68, 86, 122);
+  private static final java.awt.Color SELECT_COLOR = new java.awt.Color(255, 196, 61);
+  private static final java.awt.Color TARGET_COLOR = new java.awt.Color(124, 187, 143);
   private static final int ICON_BOUND = 64;
-  private static final Color COORDINATE_COLOR = new Color(62, 74, 96);
+  private static final java.awt.Color COORDINATE_COLOR = new java.awt.Color(62, 74, 96);
 
   public ChessGUI() {
-    board = new Main.Board();
-    turn = Main.Color.WHITE;
+    board = new Board();
+    turn = PlayerColor.WHITE;
     gameOver = false;
     aiThinking = false;
     gameId = 0L;
@@ -47,13 +60,12 @@ public class ChessGUI {
   }
 
   private void loadPieceIcons() {
-    // Preload all icons to avoid repeated disk access during rendering.
-    for (Main.Color color : Main.Color.values()) {
-      EnumMap<Main.PieceType, Icon> byType = new EnumMap<>(Main.PieceType.class);
-      for (Main.PieceType type : Main.PieceType.values()) {
+    for (PlayerColor color : PlayerColor.values()) {
+      EnumMap<PieceType, Icon> byType = new EnumMap<>(PieceType.class);
+      for (PieceType type : PieceType.values()) {
         String resourceName =
             "/icons/"
-                + (color == Main.Color.WHITE ? "white" : "black")
+                + (color == PlayerColor.WHITE ? "white" : "black")
                 + "_"
                 + type.name().toLowerCase()
                 + ".png";
@@ -69,7 +81,6 @@ public class ChessGUI {
       throw new IllegalStateException("Missing resource: " + resourcePath);
     }
     ImageIcon original = new ImageIcon(resource);
-    // Ensure every icon fits the same square by drawing it on a scaled canvas.
     int width = original.getIconWidth();
     int height = original.getIconHeight();
     if (width <= 0 || height <= 0) {
@@ -92,24 +103,23 @@ public class ChessGUI {
   }
 
   private void initUI() {
-    // Construct the application window and all interactive controls.
     installLookAndFeel();
 
     frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
     frame.setLayout(new BorderLayout());
 
-    GradientPanel root = new GradientPanel(new Color(29, 33, 48), new Color(9, 12, 24));
+    GradientPanel root = new GradientPanel(new java.awt.Color(29, 33, 48), new java.awt.Color(9, 12, 24));
     root.setLayout(new BorderLayout(25, 25));
     root.setBorder(new EmptyBorder(30, 35, 30, 35));
     frame.setContentPane(root);
 
     JLabel title = new JLabel("Chess", SwingConstants.CENTER);
     title.setFont(new Font("Serif", Font.BOLD, 36));
-    title.setForeground(new Color(238, 242, 255));
+    title.setForeground(new java.awt.Color(238, 242, 255));
     title.setBorder(new EmptyBorder(10, 10, 10, 10));
     root.add(title, BorderLayout.NORTH);
 
-    RoundedPanel boardContainer = new RoundedPanel(28, new Color(255, 255, 255, 210));
+    RoundedPanel boardContainer = new RoundedPanel(28, new java.awt.Color(255, 255, 255, 210));
     boardContainer.setLayout(new GridBagLayout());
     boardContainer.setOpaque(false);
     boardContainer.setBorder(new EmptyBorder(20, 20, 20, 20));
@@ -140,7 +150,7 @@ public class ChessGUI {
 
     boardContainer.add(boardWithLabels);
 
-    RoundedPanel sidePanel = new RoundedPanel(20, new Color(35, 43, 63, 230));
+    RoundedPanel sidePanel = new RoundedPanel(20, new java.awt.Color(35, 43, 63, 230));
     sidePanel.setLayout(new BoxLayout(sidePanel, BoxLayout.Y_AXIS));
     sidePanel.setOpaque(false);
     sidePanel.setBorder(new EmptyBorder(25, 25, 25, 25));
@@ -148,11 +158,11 @@ public class ChessGUI {
 
     JLabel subtitle = new JLabel("Plan. Calculate. Conquer.");
     subtitle.setAlignmentX(Component.CENTER_ALIGNMENT);
-    subtitle.setForeground(new Color(168, 181, 214));
+    subtitle.setForeground(new java.awt.Color(168, 181, 214));
     subtitle.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
 
     status.setAlignmentX(Component.CENTER_ALIGNMENT);
-    status.setForeground(new Color(235, 240, 255));
+    status.setForeground(new java.awt.Color(235, 240, 255));
     status.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
     status.setBorder(new EmptyBorder(18, 12, 18, 12));
     setStatusMessage("Welcome to Chess — prepare to play as White!");
@@ -167,9 +177,10 @@ public class ChessGUI {
         btn.setHorizontalAlignment(SwingConstants.CENTER);
         btn.setVerticalAlignment(SwingConstants.CENTER);
         btn.setIconTextGap(0);
-        final int rr = r, cc = c;
+        final int rr = r;
+        final int cc = c;
         btn.addActionListener(e -> onSquareClicked(rr, cc));
-        Color base = ((r + c) % 2 == 0) ? LIGHT_SQUARE : DARK_SQUARE;
+        java.awt.Color base = ((r + c) % 2 == 0) ? LIGHT_SQUARE : DARK_SQUARE;
         btn.setBackground(base);
         squares[r][c] = btn;
         boardPanel.add(btn);
@@ -178,20 +189,19 @@ public class ChessGUI {
 
     JLabel difficultyLabel = new JLabel("Difficulty");
     difficultyLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-    difficultyLabel.setForeground(new Color(205, 214, 255));
+    difficultyLabel.setForeground(new java.awt.Color(205, 214, 255));
     difficultyLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
 
     difficultySelector = new JComboBox<>(ChessAI.Difficulty.values());
     difficultySelector.setAlignmentX(Component.CENTER_ALIGNMENT);
     difficultySelector.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
     difficultySelector.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
-    difficultySelector.setForeground(new Color(32, 37, 54));
-    difficultySelector.setBackground(new Color(210, 220, 255));
+    difficultySelector.setForeground(new java.awt.Color(32, 37, 54));
+    difficultySelector.setBackground(new java.awt.Color(210, 220, 255));
     difficultySelector.setSelectedItem(selectedDifficulty);
     difficultySelector.addActionListener(
         e -> {
-          ChessAI.Difficulty choice =
-              (ChessAI.Difficulty) difficultySelector.getSelectedItem();
+          ChessAI.Difficulty choice = (ChessAI.Difficulty) difficultySelector.getSelectedItem();
           if (choice != null) {
             selectedDifficulty = choice;
             if (!gameOver) {
@@ -203,7 +213,7 @@ public class ChessGUI {
     JButton newGame =
         createControlButton(
             "New Match",
-                this::resetBoardState);
+            this::resetBoardState);
 
     JButton resign =
         createControlButton(
@@ -214,24 +224,23 @@ public class ChessGUI {
               }
               aiThinking = false;
               gameOver = true;
-              JOptionPane.showMessageDialog(
-                  frame, "You resign. The computer claims victory.");
+              JOptionPane.showMessageDialog(frame, "You resign. The computer claims victory.");
               resetBoardState();
             });
 
     JSeparator separator = new JSeparator();
     separator.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
-    separator.setForeground(new Color(66, 78, 105));
+    separator.setForeground(new java.awt.Color(66, 78, 105));
 
     JLabel tipTitle = new JLabel("Creative Tip");
     tipTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
     tipTitle.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
-    tipTitle.setForeground(new Color(205, 214, 255));
+    tipTitle.setForeground(new java.awt.Color(205, 214, 255));
 
     JLabel tipBody = new JLabel("Visualize three moves ahead.");
     tipBody.setAlignmentX(Component.CENTER_ALIGNMENT);
     tipBody.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
-    tipBody.setForeground(new Color(176, 192, 226));
+    tipBody.setForeground(new java.awt.Color(176, 192, 226));
     tipBody.setBorder(new EmptyBorder(8, 12, 0, 12));
 
     sidePanel.add(subtitle);
@@ -261,7 +270,6 @@ public class ChessGUI {
   }
 
   private void installLookAndFeel() {
-    // Prefer Nimbus for a modern appearance while gracefully falling back to defaults.
     try {
       for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
         if ("Nimbus".equals(info.getName())) {
@@ -275,14 +283,13 @@ public class ChessGUI {
   }
 
   private JButton createControlButton(String text, Runnable action) {
-    // Helper to build a styled button with hover/press feedback and an attached action.
     JButton button = new JButton(text);
     button.setAlignmentX(Component.CENTER_ALIGNMENT);
     button.setFocusPainted(false);
     button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
-    button.setForeground(Color.WHITE);
-    button.setBackground(new Color(93, 121, 237));
+    button.setForeground(java.awt.Color.WHITE);
+    button.setBackground(new java.awt.Color(93, 121, 237));
     button.setBorder(new EmptyBorder(12, 18, 12, 18));
     button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
     button.addActionListener(e -> action.run());
@@ -292,20 +299,19 @@ public class ChessGUI {
         e -> {
           ButtonModel model = button.getModel();
           if (model.isPressed()) {
-            button.setBackground(new Color(74, 100, 214));
+            button.setBackground(new java.awt.Color(74, 100, 214));
           } else if (model.isRollover()) {
-            button.setBackground(new Color(111, 142, 255));
+            button.setBackground(new java.awt.Color(111, 142, 255));
           } else {
-            button.setBackground(new Color(93, 121, 237));
+            button.setBackground(new java.awt.Color(93, 121, 237));
           }
         });
     return button;
   }
 
   private void resetBoardState() {
-    // Start a fresh game and clear any UI highlights.
-    board = new Main.Board();
-    turn = Main.Color.WHITE;
+    board = new Board();
+    turn = PlayerColor.WHITE;
     selR = selC = -1;
     legalTargets.clear();
     aiThinking = false;
@@ -320,16 +326,14 @@ public class ChessGUI {
   }
 
   private void onSquareClicked(int r, int c) {
-    // Human interaction entry point — only allow White to play and ignore clicks during AI turns.
-    if (gameOver || aiThinking || turn != Main.Color.WHITE) {
+    if (gameOver || aiThinking || turn != PlayerColor.WHITE) {
       return;
     }
 
-    // If nothing selected: try to select a piece of current color
-    Main.Piece p = board.at(r, c);
+    Piece piece = board.at(r, c);
     if (selR == -1) {
-      if (p == null) return;
-      if (p.color != turn) {
+      if (piece == null) return;
+      if (piece.getColor() != turn) {
         Toolkit.getDefaultToolkit().beep();
         return;
       }
@@ -337,7 +341,6 @@ public class ChessGUI {
       return;
     }
 
-    // If clicked same square -> deselect
     if (selR == r && selC == c) {
       selR = selC = -1;
       legalTargets.clear();
@@ -347,20 +350,18 @@ public class ChessGUI {
 
     int key = r * 8 + c;
     if (legalTargets.contains(key)) {
-      Main.Move m = new Main.Move(selR, selC, r, c);
-      board.applyMove(m);
-      // switch turn
-      turn = (turn == Main.Color.WHITE) ? Main.Color.BLACK : Main.Color.WHITE;
+      Move move = new Move(selR, selC, r, c);
+      board.applyMove(move);
+      turn = turn.opponent();
       selR = selC = -1;
       legalTargets.clear();
       updateBoardUI();
-      updateStatus(m);
-      if (!gameOver && turn == Main.Color.BLACK) {
+      updateStatus(move);
+      if (!gameOver && turn == PlayerColor.BLACK) {
         performAIMove();
       }
     } else {
-      // if clicked on another of your pieces, change selection
-      if (p != null && p.color == turn) {
+      if (piece != null && piece.getColor() == turn) {
         selectSquare(r, c);
       } else {
         Toolkit.getDefaultToolkit().beep();
@@ -369,43 +370,41 @@ public class ChessGUI {
   }
 
   private void selectSquare(int r, int c) {
-    // Remember which square is active and cache the legal destinations for highlighting.
     selR = r;
     selC = c;
     legalTargets.clear();
-    List<Main.Move> legal = board.generateLegalMoves(turn);
-    for (Main.Move m : legal) {
-      if (m.fr == r && m.fc == c) legalTargets.add(m.tr * 8 + m.tc);
+    List<Move> legal = board.generateLegalMoves(turn);
+    for (Move move : legal) {
+      if (move.fr == r && move.fc == c) {
+        legalTargets.add(move.tr * 8 + move.tc);
+      }
     }
     updateBoardUI();
   }
 
   private void updateBoardUI() {
-    // Redraw pieces and highlight currently selected squares/targets.
     for (int r = 0; r < 8; r++) {
       for (int c = 0; c < 8; c++) {
-        Main.Piece p = board.at(r, c);
+        Piece piece = board.at(r, c);
         JButton btn = squares[r][c];
-        btn.setIcon(p == null ? null : getPieceIcon(p));
+        btn.setIcon(piece == null ? null : getPieceIcon(piece));
         btn.setText("");
-        // background
-        Color base = ((r + c) % 2 == 0) ? LIGHT_SQUARE : DARK_SQUARE;
+        java.awt.Color base = ((r + c) % 2 == 0) ? LIGHT_SQUARE : DARK_SQUARE;
         btn.setBackground(base);
-        // selection highlight
         if (r == selR && c == selC) {
           btn.setBackground(SELECT_COLOR);
         } else if (legalTargets.contains(r * 8 + c)) {
           btn.setBackground(TARGET_COLOR);
         }
-        btn.setBorder(new LineBorder(new Color(255, 255, 255, 70)));
+        btn.setBorder(new LineBorder(new java.awt.Color(255, 255, 255, 70)));
       }
     }
   }
 
-  private Icon getPieceIcon(Main.Piece piece) {
-    Map<Main.PieceType, Icon> byType = pieceIcons.get(piece.color);
+  private Icon getPieceIcon(Piece piece) {
+    Map<PieceType, Icon> byType = pieceIcons.get(piece.getColor());
     if (byType == null) return null;
-    return byType.get(piece.type);
+    return byType.get(piece.getType());
   }
 
   private JLabel createCoordinateLabel(String text) {
@@ -416,24 +415,43 @@ public class ChessGUI {
     return label;
   }
 
-  private void updateStatus(Main.Move lastMove) {
-    // Compose a rich-text status panel reflecting the latest move and current situation.
-    // Determine legal moves for current player
-    List<Main.Move> legal = board.generateLegalMoves(turn);
+  private void updateStatus(Move lastMove) {
+    if (board.isAutomaticDrawByInsufficientMaterial()) {
+      gameOver = true;
+      aiThinking = false;
+      StringBuilder message = new StringBuilder();
+      if (lastMove != null) {
+        message
+            .append("<span style='font-size:12px;color:#c9d1ff;'>Last move: ")
+            .append(formatMove(lastMove))
+            .append("</span><br/>");
+      }
+      message
+          .append(
+              "<span style='font-size:15px;font-weight:bold;color:#ffd369;'>Draw by insufficient material.</span><br/>")
+          .append("<span style='color:#d6e0ff;'>Neither side has enough material to checkmate.</span>");
+      setStatusMessage(message.toString());
+      JOptionPane.showMessageDialog(frame, "Draw by insufficient material.");
+      return;
+    }
+
+    List<Move> legal = board.generateLegalMoves(turn);
     boolean inCheck = board.isKingInCheck(turn);
     StringBuilder message = new StringBuilder();
     String dialogMessage = null;
+
     if (lastMove != null) {
       message
           .append("<span style='font-size:12px;color:#c9d1ff;'>Last move: ")
           .append(formatMove(lastMove))
           .append("</span><br/>");
     }
+
     if (legal.isEmpty()) {
       gameOver = true;
       aiThinking = false;
       if (inCheck) {
-        boolean playerToMove = (turn == Main.Color.WHITE);
+        boolean playerToMove = (turn == PlayerColor.WHITE);
         String loser = playerToMove ? "You" : "Computer";
         String winner = playerToMove ? "Computer" : "You";
         String loserVerb = playerToMove ? "are" : "is";
@@ -452,12 +470,11 @@ public class ChessGUI {
       } else {
         dialogMessage = "Stalemate! The duel ends in a draw.";
         message
-            .append(
-                "<span style='font-size:15px;font-weight:bold;color:#ffd369;'>Stalemate.</span><br/>")
+            .append("<span style='font-size:15px;font-weight:bold;color:#ffd369;'>Stalemate.</span><br/>")
             .append("<span style='color:#d6e0ff;'>The battle ends peacefully.</span>");
       }
     } else {
-      if (turn == Main.Color.WHITE) {
+      if (turn == PlayerColor.WHITE) {
         message
             .append("<span style='font-size:18px;font-weight:bold;'>Your move</span>")
             .append("<br/><span style='color:#bcd0ff;'>Plan your attack against the computer.</span>");
@@ -468,7 +485,7 @@ public class ChessGUI {
       }
       if (inCheck) {
         String warning =
-            (turn == Main.Color.WHITE)
+            (turn == PlayerColor.WHITE)
                 ? "Your king is in check!"
                 : "Computer king is in check!";
         message.append("<br/><span style='color:#ff9f7b;'>").append(warning).append("</span>");
@@ -484,12 +501,12 @@ public class ChessGUI {
     }
   }
 
-  private String formatMove(Main.Move move) {
-    Main.Piece piece = board.at(move.tr, move.tc);
+  private String formatMove(Move move) {
+    Piece piece = board.at(move.tr, move.tc);
     String pieceName = "";
     if (piece != null) {
       pieceName =
-          switch (piece.type) {
+          switch (piece.getType()) {
             case KING -> "K";
             case QUEEN -> "Q";
             case ROOK -> "R";
@@ -504,42 +521,40 @@ public class ChessGUI {
   }
 
   private void performAIMove() {
-    // Run the AI move selection asynchronously so the UI stays responsive.
-    if (aiThinking || gameOver || turn != Main.Color.BLACK) {
+    if (aiThinking || gameOver || turn != PlayerColor.BLACK) {
       return;
     }
     aiThinking = true;
     final long currentGameId = gameId;
-    final Main.Board snapshot = board.copy();
+    final Board snapshot = board.copy();
 
-    SwingWorker<Main.Move, Void> worker =
+    SwingWorker<Move, Void> worker =
         new SwingWorker<>() {
           @Override
-          protected Main.Move doInBackground() {
-            return ai.chooseMove(snapshot, Main.Color.BLACK, selectedDifficulty);
+          protected Move doInBackground() {
+            return ai.chooseMove(snapshot, PlayerColor.BLACK, selectedDifficulty);
           }
 
           @Override
           protected void done() {
             aiThinking = false;
-            if (currentGameId != gameId || gameOver || turn != Main.Color.BLACK) {
+            if (currentGameId != gameId || gameOver || turn != PlayerColor.BLACK) {
               return;
             }
             try {
-              Main.Move aiMove = get();
+              Move aiMove = get();
               if (aiMove == null) {
                 updateStatus(null);
                 return;
               }
               board.applyMove(aiMove);
-              turn = Main.Color.WHITE;
+              turn = PlayerColor.WHITE;
               selR = selC = -1;
               legalTargets.clear();
               updateBoardUI();
               updateStatus(aiMove);
             } catch (Exception ex) {
-              JOptionPane.showMessageDialog(
-                  frame, "Computer move failed: " + ex.getMessage());
+              JOptionPane.showMessageDialog(frame, "Computer move failed: " + ex.getMessage());
             }
           }
         };
@@ -557,10 +572,10 @@ public class ChessGUI {
   }
 
   private static class GradientPanel extends JPanel {
-    private final Color start;
-    private final Color end;
+    private final java.awt.Color start;
+    private final java.awt.Color end;
 
-    GradientPanel(Color start, Color end) {
+    GradientPanel(java.awt.Color start, java.awt.Color end) {
       this.start = start;
       this.end = end;
       setOpaque(false);
@@ -579,9 +594,9 @@ public class ChessGUI {
 
   private static class RoundedPanel extends JPanel {
     private final int arc;
-    private final Color backgroundColor;
+    private final java.awt.Color backgroundColor;
 
-    RoundedPanel(int arc, Color backgroundColor) {
+    RoundedPanel(int arc, java.awt.Color backgroundColor) {
       this.arc = arc;
       this.backgroundColor = backgroundColor;
       setOpaque(false);
