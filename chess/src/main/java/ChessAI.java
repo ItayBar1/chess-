@@ -39,21 +39,19 @@ public class ChessAI {
 
   private final Random random = new Random();
 
-  public Main.Move chooseMove(Main.Board board, Main.Color aiColor, Difficulty difficulty) {
-    // Evaluate every legal move from the root position using alpha-beta pruning.
-    List<Main.Move> legal = board.generateLegalMoves(aiColor);
+  public Move chooseMove(Board board, PlayerColor aiPlayerColor, Difficulty difficulty) {
+    List<Move> legal = board.generateLegalMoves(aiPlayerColor);
     if (legal.isEmpty()) {
       return null;
     }
     Collections.shuffle(legal, random);
 
     double bestScore = Double.NEGATIVE_INFINITY;
-    Main.Move bestMove = legal.getFirst();
+    Move bestMove = legal.getFirst();
     int depth = difficulty.searchDepth();
 
-    for (Main.Move move : legal) {
-      // Apply the candidate move on a clone so we do not mutate the original board.
-      Main.Board copy = board.copy();
+    for (Move move : legal) {
+      Board copy = board.copy();
       copy.applyMove(move);
       double score =
           alphaBeta(
@@ -61,8 +59,8 @@ public class ChessAI {
               depth - 1,
               Double.NEGATIVE_INFINITY,
               Double.POSITIVE_INFINITY,
-              opposite(aiColor),
-              aiColor);
+              aiPlayerColor.opponent(),
+              aiPlayerColor);
       if (score > bestScore + 1e-6) {
         bestScore = score;
         bestMove = move;
@@ -74,55 +72,51 @@ public class ChessAI {
   }
 
   private double alphaBeta(
-      Main.Board board,
+      Board board,
       int depth,
       double alpha,
       double beta,
-      Main.Color turn,
-      Main.Color perspective) {
-    // Stop the search when the configured depth is reached and evaluate the static position.
+      PlayerColor turn,
+      PlayerColor perspective) {
     if (depth < 0) {
       return evaluateBoard(board, perspective);
     }
 
-    List<Main.Move> legal = board.generateLegalMoves(turn);
+    List<Move> legal = board.generateLegalMoves(turn);
     if (legal.isEmpty()) {
-      // Checkmate is infinitely good/bad, stalemate is neutral.
       if (board.isKingInCheck(turn)) {
         return turn == perspective ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
       }
-      return 0.0; // stalemate
+      return 0.0;
     }
 
     Collections.shuffle(legal, random);
     if (turn == perspective) {
       double value = Double.NEGATIVE_INFINITY;
-      for (Main.Move move : legal) {
-        Main.Board copy = board.copy();
+      for (Move move : legal) {
+        Board copy = board.copy();
         copy.applyMove(move);
         value =
             Math.max(
                 value,
-                alphaBeta(copy, depth - 1, alpha, beta, opposite(turn), perspective));
+                alphaBeta(copy, depth - 1, alpha, beta, turn.opponent(), perspective));
         alpha = Math.max(alpha, value);
         if (alpha >= beta) {
-          // Alpha cutoff: opponent already has a better option elsewhere.
           break;
         }
       }
       return value;
     } else {
       double value = Double.POSITIVE_INFINITY;
-      for (Main.Move move : legal) {
-        Main.Board copy = board.copy();
+      for (Move move : legal) {
+        Board copy = board.copy();
         copy.applyMove(move);
         value =
             Math.min(
                 value,
-                alphaBeta(copy, depth - 1, alpha, beta, opposite(turn), perspective));
+                alphaBeta(copy, depth - 1, alpha, beta, turn.opponent(), perspective));
         beta = Math.min(beta, value);
         if (beta <= alpha) {
-          // Beta cutoff: our side has a better guarantee already.
           break;
         }
       }
@@ -130,14 +124,13 @@ public class ChessAI {
     }
   }
 
-  private double evaluateBoard(Main.Board board, Main.Color perspective) {
-    // Start with a basic material count from the perspective of the AI.
+  private double evaluateBoard(Board board, PlayerColor perspective) {
     double score = 0.0;
     for (int r = 0; r < 8; r++) {
       for (int c = 0; c < 8; c++) {
-        Main.Piece piece = board.at(r, c);
+        Piece piece = board.at(r, c);
         if (piece == null) continue;
-        double value = switch (piece.type) {
+        double value = switch (piece.getType()) {
           case KING -> KING_VALUE;
           case QUEEN -> QUEEN_VALUE;
           case ROOK -> ROOK_VALUE;
@@ -145,26 +138,20 @@ public class ChessAI {
           case KNIGHT -> KNIGHT_VALUE;
           case PAWN -> PAWN_VALUE;
         };
-        score += piece.color == perspective ? value : -value;
+        score += piece.getColor() == perspective ? value : -value;
       }
     }
 
-    // Reward mobility so the AI prefers positions with more available choices.
     int mobility = board.generateLegalMoves(perspective).size();
-    int oppMobility = board.generateLegalMoves(opposite(perspective)).size();
+    int oppMobility = board.generateLegalMoves(perspective.opponent()).size();
     score += 0.05 * (mobility - oppMobility);
 
-    // Small nudges when either king is currently in check.
     if (board.isKingInCheck(perspective)) {
       score -= 0.5;
     }
-    if (board.isKingInCheck(opposite(perspective))) {
+    if (board.isKingInCheck(perspective.opponent())) {
       score += 0.5;
     }
     return score;
-  }
-
-  private Main.Color opposite(Main.Color color) {
-    return color == Main.Color.WHITE ? Main.Color.BLACK : Main.Color.WHITE;
   }
 }
