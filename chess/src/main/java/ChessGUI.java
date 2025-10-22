@@ -203,9 +203,7 @@ public class ChessGUI {
     JButton newGame =
         createControlButton(
             "New Match",
-            () -> {
-              resetBoardState();
-            });
+                this::resetBoardState);
 
     JButton resign =
         createControlButton(
